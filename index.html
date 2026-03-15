@@ -1013,6 +1013,7 @@
         { lat: 36.931808, lon: 128.586912 }  // 5. 선비세상
     ];
     const GPS_RADIUS = 100; // 미터
+    const DEMO_MODE = false; // 시연회 때만 true로 변경
 
     function haversine(lat1, lon1, lat2, lon2) {
         const R = 6371000;
@@ -1024,6 +1025,18 @@
 
     function stampSite(n) {
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
+
+        // 시연 모드: GPS 검증 없이 즉시 인증
+        if (DEMO_MODE) {
+            stamps.push(n);
+            localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+            sendToSheet('스탬프인증', siteNames[n-1]);
+            loadStamps();
+            drawPaths();
+            showStampSuccess(siteNames[n-1]);
+            return;
+        }
+
         if (!navigator.geolocation) {
             alert('이 브라우저는 위치 서비스를 지원하지 않습니다.');
             return;
