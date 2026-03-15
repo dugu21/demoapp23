@@ -885,20 +885,7 @@
 
         <!-- 하단 반투명 폼 -->
         <div class="form-panel">
-            <input type="text" id="userName" placeholder="성함을 입력하세요">
-            <input type="tel" id="userPhone" placeholder="전화번호를 입력하세요">
-
-            <div class="privacy-wrap">
-                <div class="privacy-summary">
-                    <strong>개인정보 수집 및 이용 동의</strong><br>
-                    수집항목: 성명, 전화번호 · 수집목적: 스탬프 투어 참여자 확인 및 경품 제공 · 보유기간: 행사 종료 후 6개월 · 개인정보 수집 및 이용에 동의하지 않으실 경우 투어 참여가 제한될 수 있습니다.
-                </div>
-                <div class="privacy-check-row" onclick="togglePrivacy()">
-                    <input type="checkbox" id="privacyCheck" onclick="event.stopPropagation(); document.getElementById('startBtn').disabled = !this.checked;">
-                    <label for="privacyCheck" onclick="event.stopPropagation(); togglePrivacy()">개인정보 수집 및 이용에 동의합니다 (필수)</label>
-                </div>
-            </div>
-
+            <input type="text" id="userName" placeholder="닉네임을 입력해주세요" oninput="document.getElementById('startBtn').disabled = !this.value.trim()">
             <button id="startBtn" onclick="saveUser()" disabled>투어 시작하기</button>
         </div>
 
@@ -962,31 +949,22 @@
         if (video && video.paused) { video.muted = true; video.play().catch(() => {}); }
     });
 
-    function togglePrivacy() {
-        const cb = document.getElementById('privacyCheck');
-        cb.checked = !cb.checked;
-        document.getElementById('startBtn').disabled = !cb.checked;
-    }
-
     function saveUser() {
         const name = document.getElementById('userName').value.trim();
-        const phone = document.getElementById('userPhone').value.trim();
-        if (!name || !phone) return alert("정보를 입력해 주십시오.");
-        if (!document.getElementById('privacyCheck').checked) return alert("개인정보 수집 및 이용에 동의해 주십시오.");
+        if (!name) return alert("닉네임을 입력해 주십시오.");
 
         const prev = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
 
-        // 이전 사용자와 이름 또는 전화번호가 다르면 전체 초기화
-        if (prev.name && prev.phone && (prev.name !== name || prev.phone !== phone)) {
-            if (!confirm("등록 정보가 다릅니다.\n모든 스탬프 인증이 초기화됩니다.\n계속하시겠습니까?")) return;
+        if (prev.name && prev.name !== name) {
+            if (!confirm("닉네임이 다릅니다.\n모든 스탬프 인증이 초기화됩니다.\n계속하시겠습니까?")) return;
             localStorage.removeItem('seonbi_stamps');
-            localStorage.removeItem('seonbi_cert_' + prev.phone);
+            localStorage.removeItem('seonbi_cert_' + prev.name);
             localStorage.removeItem('seonbi_gift_claimed');
             localStorage.removeItem('seonbi_complete_sent');
             stamps = [];
         }
 
-        localStorage.setItem('seonbi_user', JSON.stringify({ name, phone }));
+        localStorage.setItem('seonbi_user', JSON.stringify({ name }));
         sendToSheet('투어시작');
         goTo('page-stamp');
     }
