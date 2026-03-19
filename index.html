@@ -523,6 +523,13 @@
             background: #eee; color: #555; font-size: 15px; font-weight: 700;
             font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
         }
+        .gps-modal-retry {
+            width: 100%; padding: 14px; border: none; border-radius: 14px;
+            background: linear-gradient(135deg, #E8B84B, #C9972A);
+            color: #1B3A2A; font-size: 15px; font-weight: 900;
+            font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
+            margin-bottom: 10px;
+        }
 
         /* 스탬프 인증 완료 팝업 */
         .stamp-success-overlay {
@@ -1011,11 +1018,11 @@
 
     // 각 거점 GPS 좌표 (위도, 경도)
     const siteCoords = [
-        { lat: 36.925492, lng: 128.580075 }, // 1. 소수서원
-        { lat: 36.925492, lng: 128.580075 }, // 2. 소수박물관
-        { lat: 36.925492, lng: 128.580075 }, // 3. 선비촌
-        { lat: 36.925492, lng: 128.580075 }, // 4. 선비문화수련원
-        { lat: 36.931678, lng: 128.586547 }, // 5. 선비세상
+        { lat: 36.925024, lng: 128.580096 }, // 1. 소수서원
+        { lat: 36.925024, lng: 128.580096 }, // 2. 소수박물관
+        { lat: 36.925024, lng: 128.580096 }, // 3. 선비촌
+        { lat: 36.925024, lng: 128.580096 }, // 4. 선비문화수련원
+        { lat: 36.925024, lng: 128.580096 }, // 5. 선비세상
     ];
     const GPS_RADIUS = 100; // 인증 반경 (미터)
 
@@ -1034,9 +1041,12 @@
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
 
         // GPS 인증 모달 표시
+        window._gpsPendingN = n;
         const modal = document.getElementById('gpsModal');
         const modalTitle = document.getElementById('gpsModalTitle');
         const gpsStatus = document.getElementById('gpsStatus');
+        document.getElementById('gpsModalIcon').textContent = '📡';
+        document.getElementById('gpsRetryBtn').style.display = 'none';
         modalTitle.textContent = siteNames[n-1] + ' 스탬프 인증';
         gpsStatus.textContent = '📡 현재 위치를 확인하는 중...';
         modal.classList.add('show');
@@ -1063,16 +1073,22 @@
                     drawPaths();
                     showStampSuccess(siteNames[n-1]);
                 } else {
-                    gpsStatus.innerHTML = `❌ 거점과의 거리: <strong>${distText}</strong><br><span style="font-size:12px;color:#999;">100m 이내에서 인증해 주세요</span>`;
+                    document.getElementById('gpsModalIcon').textContent = '❌';
+                    document.getElementById('gpsModalTitle').textContent = '인증 실패';
+                    gpsStatus.innerHTML = `거점과의 거리: <strong style="color:#c0392b;">${distText}</strong><br><span style="font-size:12px;color:#999;">100m 이내에 있어야 인증됩니다</span>`;
+                    document.getElementById('gpsRetryBtn').style.display = 'block';
                 }
             },
             function(err) {
                 const msgs = {
-                    1: '❌ 위치 접근이 거부되었습니다.\n설정에서 위치 권한을 허용해 주세요.',
-                    2: '❌ 위치를 확인할 수 없습니다.\nGPS 신호를 확인해 주세요.',
-                    3: '❌ 위치 확인 시간이 초과되었습니다.\n다시 시도해 주세요.'
+                    1: '위치 접근이 거부되었습니다.\n설정에서 위치 권한을 허용해 주세요.',
+                    2: '위치를 확인할 수 없습니다.\nGPS 신호를 확인해 주세요.',
+                    3: '위치 확인 시간이 초과되었습니다.\n다시 시도해 주세요.'
                 };
-                gpsStatus.textContent = msgs[err.code] || '❌ 위치 확인 중 오류가 발생했습니다.';
+                document.getElementById('gpsModalIcon').textContent = '❌';
+                document.getElementById('gpsModalTitle').textContent = '인증 실패';
+                gpsStatus.textContent = msgs[err.code] || '위치 확인 중 오류가 발생했습니다.';
+                document.getElementById('gpsRetryBtn').style.display = 'block';
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
@@ -1218,9 +1234,10 @@
     <!-- GPS 인증 모달 -->
     <div class="gps-modal-overlay" id="gpsModal">
         <div class="gps-modal-box">
-            <div class="gps-modal-icon">📡</div>
+            <div class="gps-modal-icon" id="gpsModalIcon">📡</div>
             <div class="gps-modal-title" id="gpsModalTitle">스탬프 인증</div>
             <div class="gps-status-text" id="gpsStatus">현재 위치를 확인하는 중...</div>
+            <button class="gps-modal-retry" id="gpsRetryBtn" style="display:none;" onclick="stampSite(window._gpsPendingN)">🔄 다시 시도</button>
             <button class="gps-modal-close" onclick="closeGpsModal()">닫기</button>
         </div>
     </div>
