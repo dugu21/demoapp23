@@ -496,6 +496,34 @@
             text-align: center; margin-top: 10px;
             animation: fadeUp 0.5s ease 0.9s both;
         }
+        /* GPS 인증 모달 */
+        .gps-modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+            align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .gps-modal-overlay.show { display: flex; pointer-events: all; }
+        .gps-modal-box {
+            background: white; border-radius: 24px;
+            padding: 32px 24px; text-align: center;
+            width: calc(100% - 60px); max-width: 320px;
+        }
+        .gps-modal-icon { font-size: 52px; margin-bottom: 10px; }
+        .gps-modal-title {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 17px; font-weight: 900; color: #1B3A2A; margin-bottom: 14px;
+        }
+        .gps-status-text {
+            font-size: 14px; color: #555; line-height: 1.7;
+            min-height: 44px; margin-bottom: 20px;
+        }
+        .gps-modal-close {
+            width: 100%; padding: 14px; border: none; border-radius: 14px;
+            background: #eee; color: #555; font-size: 15px; font-weight: 700;
+            font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
+        }
+
         /* 스탬프 인증 완료 팝업 */
         .stamp-success-overlay {
             display: none; position: fixed; inset: 0; z-index: 300;
@@ -981,14 +1009,86 @@
     /* ── 스탬프 인증 ── */
     const siteNames = ['소수서원','소수박물관','선비촌','선비문화수련원','선비세상'];
 
+    // 각 거점 GPS 좌표 (위도, 경도)
+    const siteCoords = [
+        { lat: 36.816165, lng: 128.607430 }, // 1. 소수서원
+        { lat: 36.816165, lng: 128.607430 }, // 2. 소수박물관
+        { lat: 36.816165, lng: 128.607430 }, // 3. 선비촌
+        { lat: 36.816165, lng: 128.607430 }, // 4. 선비문화수련원
+        { lat: 36.816165, lng: 128.607430 }, // 5. 선비세상
+    ];
+    const GPS_RADIUS = 100; // 인증 반경 (미터)
+
+    // 두 좌표 간 거리 계산 (Haversine)
+    function calcDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2)
+                + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+                * Math.sin(dLng/2) * Math.sin(dLng/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
     function stampSite(n) {
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
-        stamps.push(n);
-        localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
-        sendToSheet('스탬프인증', siteNames[n - 1]);
-        loadStamps();
-        drawPaths();
-        showStampSuccess(siteNames[n - 1]);
+
+        // GPS 인증 모달 표시
+        const modal = document.getElementById('gpsModal');
+        const modalTitle = document.getElementById('gpsModalTitle');
+        const gpsStatus = document.getElementById('gpsStatus');
+        modalTitle.textContent = siteNames[n-1] + ' 스탬프 인증';
+        gpsStatus.textContent = '📡 현재 위치를 확인하는 중...';
+        modal.classList.add('show');
+
+        if (!navigator.geolocation) {
+            gpsStatus.textContent = '❌ 이 기기는 GPS를 지원하지 않습니다.';
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                const userLat = pos.coords.latitude;
+                const userLng = pos.coords.longitude;
+                const target = siteCoords[n-1];
+                const dist = calcDistance(userLat, userLng, target.lat, target.lng);
+                const distText = dist < 1000 ? Math.round(dist) + 'm' : (dist/1000).toFixed(1) + 'km';
+
+                if (dist <= GPS_RADIUS) {
+                    modal.classList.remove('show');
+                    stamps.push(n);
+                    localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+                    sendToSheet('스탬프인증', siteNames[n-1]);
+                    loadStamps();
+                    drawPaths();
+                    showStampSuccess(siteNames[n-1]);
+                } else {
+                    gpsStatus.innerHTML = `❌ 거점과의 거리: <strong>${distText}</strong><br><span style="font-size:12px;color:#999;">100m 이내에서 인증해 주세요</span>`;
+                }
+            },
+            function(err) {
+                const msgs = {
+                    1: '❌ 위치 접근이 거부되었습니다.\n설정에서 위치 권한을 허용해 주세요.',
+                    2: '❌ 위치를 확인할 수 없습니다.\nGPS 신호를 확인해 주세요.',
+                    3: '❌ 위치 확인 시간이 초과되었습니다.\n다시 시도해 주세요.'
+                };
+                gpsStatus.textContent = msgs[err.code] || '❌ 위치 확인 중 오류가 발생했습니다.';
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+
+    function closeGpsModal() {
+        document.getElementById('gpsModal').classList.remove('show');
+    }
+
+    function showStampSuccess(name) {
+        document.getElementById('successSiteName').textContent = name;
+        document.getElementById('stampSuccessOverlay').classList.add('show');
+    }
+
+    function closeStampSuccess() {
+        document.getElementById('stampSuccessOverlay').classList.remove('show');
     }
 
 
@@ -1115,6 +1215,16 @@
 </script>
 
     <!-- 스탬프 인증 완료 팝업 -->
+    <!-- GPS 인증 모달 -->
+    <div class="gps-modal-overlay" id="gpsModal">
+        <div class="gps-modal-box">
+            <div class="gps-modal-icon">📡</div>
+            <div class="gps-modal-title" id="gpsModalTitle">스탬프 인증</div>
+            <div class="gps-status-text" id="gpsStatus">현재 위치를 확인하는 중...</div>
+            <button class="gps-modal-close" onclick="closeGpsModal()">닫기</button>
+        </div>
+    </div>
+
     <div class="stamp-success-overlay" id="stampSuccessOverlay">
         <div class="stamp-success-box">
             <div class="stamp-success-icon">🎉</div>
