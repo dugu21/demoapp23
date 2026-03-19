@@ -884,7 +884,7 @@
 
 <script>
     /* ── Google Sheets 연동 ── */
-    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbz7pix1InQntv_wsBH7B80euBseaFE6gW19NQmbO1jZTEaJEbIelP7f5j_i6OAKhm1-LQ/exec';
+    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbw1g3JpxPapak50tp7UUqY5tDmwOVFjJAs7i6Jj3zaAAd9c5caZG9efLNfXzVlaHXe2oA/exec';
 
     /* ── 카카오 콜백 처리 ── */
     window.addEventListener('load', () => {
@@ -901,7 +901,7 @@
         // index.html에서 직접 code가 붙은 경우 (혹시 모를 fallback)
         const code = params.get('code');
         if (code) {
-            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', phone: '' }));
+            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자' }));
             sendToSheet('투어시작');
             window.history.replaceState({}, '', window.location.pathname);
             goTo('page-stamp');
@@ -927,7 +927,7 @@
                         headers: { Authorization: 'Bearer ' + response.access_token }
                     }).then(r => r.json()).then(profile => {
                         const name = profile.name || '구글사용자';
-                        localStorage.setItem('seonbi_user', JSON.stringify({ name, phone: '' }));
+                        localStorage.setItem('seonbi_user', JSON.stringify({ name }));
                         sendToSheet('투어시작');
                         goTo('page-stamp');
                     });
@@ -940,7 +940,6 @@
         const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
         const data = {
             name: user.name || '',
-            phone: user.phone || '',
             event: event,
             certNumber: extra || ''
         };
@@ -1114,7 +1113,7 @@
         const name = user.name || '선비';
 
         // 인증번호: 이름+전화 기반 고정 번호 생성
-        let certKey = 'seonbi_cert_' + (user.phone || 'guest');
+        let certKey = 'seonbi_cert_' + (user.name || 'guest');
         let cert = localStorage.getItem(certKey);
         if (!cert) {
             const rand = Math.floor(100000 + Math.random() * 900000);
