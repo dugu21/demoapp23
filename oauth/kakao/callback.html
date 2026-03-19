@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 로그인 중...</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(160deg, #e8f6fb, #d0edf7);
+            height: 100dvh;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 20px;
+        }
+        .spinner {
+            width: 52px; height: 52px;
+            border: 5px solid rgba(254,229,0,0.3);
+            border-top-color: #FEE500;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .msg {
+            font-size: 16px; font-weight: 700; color: #333;
+        }
+        .sub {
+            font-size: 13px; color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div class="msg">카카오 로그인 중...</div>
+    <div class="sub" id="statusMsg">잠시만 기다려 주세요</div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const error = params.get('error');
+
+        if (error) {
+            document.getElementById('statusMsg').textContent = '로그인이 취소되었습니다. 돌아갑니다...';
+            setTimeout(() => {
+                window.location.href = '../../index.html';
+            }, 1500);
+        } else if (code) {
+            console.log('카카오에서 받은 code:', code);
+
+            // code를 이용해 사용자 정보 요청 (카카오 토큰 교환은 서버 필요)
+            // 현재는 프론트엔드만 있으므로 code를 localStorage에 저장 후 메인으로 이동
+            localStorage.setItem('kakao_code', code);
+            localStorage.setItem('seonbi_user', JSON.stringify({
+                name: '카카오사용자',
+                phone: '',
+                loginType: 'kakao'
+            }));
+
+            document.getElementById('statusMsg').textContent = '로그인 성공! 이동 중...';
+
+            // 메인 앱으로 이동 (스탬프 페이지 바로 진입)
+            setTimeout(() => {
+                window.location.href = '../../index.html?kakao=success';
+            }, 800);
+        } else {
+            document.getElementById('statusMsg').textContent = '오류가 발생했습니다. 돌아갑니다...';
+            setTimeout(() => {
+                window.location.href = '../../index.html';
+            }, 1500);
+        }
+    </script>
+</body>
+</html>
