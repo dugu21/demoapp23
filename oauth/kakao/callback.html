@@ -43,7 +43,7 @@
         if (error) {
             document.getElementById('statusMsg').textContent = '로그인이 취소되었습니다. 돌아갑니다...';
             setTimeout(() => {
-                window.location.href = '../../index.html';
+                window.location.href = 'https://seonbiroad.kr';
             }, 1500);
         } else if (code) {
             console.log('카카오에서 받은 code:', code);
@@ -61,12 +61,12 @@
 
             // 메인 앱으로 이동 (스탬프 페이지 바로 진입)
             setTimeout(() => {
-                window.location.href = '../../index.html?kakao=success';
+                window.location.href = 'https://seonbiroad.kr?kakao=success';
             }, 800);
         } else {
             document.getElementById('statusMsg').textContent = '오류가 발생했습니다. 돌아갑니다...';
             setTimeout(() => {
-                window.location.href = '../../index.html';
+                window.location.href = 'https://seonbiroad.kr';
             }, 1500);
         }
     </script>
