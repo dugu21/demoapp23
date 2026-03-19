@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>영주 선비숨길 스탬프 투어</title>
-    <!-- 카카오 SDK -->
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/1.43.1/kakao.min.js" crossorigin="anonymous"></script>
     <!-- 구글 Identity SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
@@ -828,11 +826,11 @@
         <div class="form-panel">
         <!-- 소셜 로그인 버튼 -->
             <div class="social-btns">
-                <button class="kakao-btn" onclick="kakaoLogin()">
+                <button class="kakao-btn" onclick="kakaoLogin()" style="background-color:#FEE500;">
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                         <path d="M11 2C6.029 2 2 5.358 2 9.5c0 2.607 1.638 4.9 4.1 6.22l-.9 3.28 3.8-2.5c.63.09 1.29.14 1.98.14 4.97 0 9-3.358 9-7.5S15.97 2 11 2z" fill="#191919"/>
                     </svg>
-                    카카오 간편 로그인
+                    카카오 로그인하기
                 </button>
                 <button class="google-btn" onclick="googleLogin()">
                     <svg width="22" height="22" viewBox="0 0 48 48">
@@ -853,28 +851,34 @@
     /* ── Google Sheets 연동 ── */
     const SHEET_URL = 'https://script.google.com/macros/s/AKfycbz7pix1InQntv_wsBH7B80euBseaFE6gW19NQmbO1jZTEaJEbIelP7f5j_i6OAKhm1-LQ/exec';
 
-    /* ── 카카오 로그인 ── */
-    if (window.Kakao && !Kakao.isInitialized()) {
-        Kakao.init('503546ac78f91957aaefeff0cb902d86');
-    }
+    /* ── 카카오 콜백 처리 ── */
+    window.addEventListener('load', () => {
+        const params = new URLSearchParams(window.location.search);
+        // 카카오 콜백 페이지에서 넘어온 경우
+        if (params.get('kakao') === 'success') {
+            window.history.replaceState({}, '', window.location.pathname);
+            const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+            if (!user.name) user.name = '카카오사용자';
+            localStorage.setItem('seonbi_user', JSON.stringify(user));
+            sendToSheet('투어시작');
+            goTo('page-stamp');
+        }
+        // index.html에서 직접 code가 붙은 경우 (혹시 모를 fallback)
+        const code = params.get('code');
+        if (code) {
+            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', phone: '' }));
+            sendToSheet('투어시작');
+            window.history.replaceState({}, '', window.location.pathname);
+            goTo('page-stamp');
+        }
+    });
 
+    /* ── 카카오 로그인 (REST API 방식) ── */
     function kakaoLogin() {
-        if (!window.Kakao) { alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
-        Kakao.Auth.login({
-            success: function(authObj) {
-                Kakao.API.request({
-                    url: '/v2/user/me',
-                    success: function(res) {
-                        const name = res.kakao_account?.profile?.nickname || res.properties?.nickname || '카카오사용자';
-                        localStorage.setItem('seonbi_user', JSON.stringify({ name, phone: '' }));
-                        sendToSheet('투어시작');
-                        goTo('page-stamp');
-                    },
-                    fail: function(err) { alert('사용자 정보를 가져오지 못했습니다.'); }
-                });
-            },
-            fail: function(err) { alert('카카오 로그인에 실패했습니다.'); }
-        });
+        const KAKAO_CLIENT_ID = '3bbc7589eb3b023d5c17f179f2d606e9';
+        const REDIRECT_URI = 'https://dugu21.github.io/demoapp23/oauth/kakao/callback';
+        const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+        window.location.href = kakaoAuthURL;
     }
 
     function googleLogin() {
