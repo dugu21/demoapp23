@@ -876,7 +876,7 @@
     /* ── 카카오 로그인 (REST API 방식) ── */
     function kakaoLogin() {
         const KAKAO_CLIENT_ID = '3bbc7589eb3b023d5c17f179f2d606e9';
-        const REDIRECT_URI = 'https://dugu21.github.io/demoapp23/oauth/kakao/callback';
+        const REDIRECT_URI = 'https://seonbiroad.kr/oauth/kakao/callback';
         const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
         window.location.href = kakaoAuthURL;
     }
