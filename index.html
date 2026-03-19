@@ -4,9 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>영주 선비숨길 스탬프 투어</title>
-    <!-- 카카오 SDK -->
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+        const firebaseConfig = {
+            apiKey: "AIzaSyC8zyPQGfOaPWK6VwlbH9gmpgq3cOMc9KA",
+            authDomain: "seonbi-stamp-tour.firebaseapp.com",
+            projectId: "seonbi-stamp-tour",
+            storageBucket: "seonbi-stamp-tour.firebasestorage.app",
+            messagingSenderId: "573527703368",
+            appId: "1:573527703368:web:8ccb5135f7aecd7cfffd7d"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        window._fb = { auth, db, provider, signInWithPopup, onAuthStateChanged, doc, getDoc, setDoc, serverTimestamp };
+        onAuthStateChanged(auth, (u) => {
+            window._fbUser = u || null;
+            if (typeof window._onAuthReady === 'function') window._onAuthReady(u);
+        });
+    </script>
     <style>
         :root { --forest: #1B3A2A; --amber: #E8B84B; --cream: #F7F2E8; --gold: #C9972A; --warm: #8B7355; }
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -127,41 +147,6 @@
             cursor: not-allowed;
         }
 
-
-        /* 카카오 로그인 버튼 */
-        .kakao-btn {
-            width: 100%;
-            padding: 16px;
-            border-radius: 14px;
-            border: none;
-            background: #FEE500;
-            color: #191919;
-            font-weight: 900;
-            font-size: 16px;
-            font-family: 'Noto Sans KR', sans-serif;
-            letter-spacing: 1px;
-            cursor: pointer;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            box-shadow: 0 4px 12px rgba(254,229,0,0.4);
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        .kakao-btn:active { transform: scale(0.97); }
-        .kakao-btn img { width: 22px; height: 22px; }
-        .or-divider {
-            display: flex; align-items: center; gap: 10px;
-            margin-bottom: 10px;
-        }
-        .or-divider::before, .or-divider::after {
-            content: ''; flex: 1; height: 1px;
-            background: rgba(27,58,42,0.2);
-        }
-        .or-divider span {
-            font-size: 12px; color: rgba(27,58,42,0.5); font-weight: 700;
-        }
         /* 개인정보 동의 */
         .privacy-wrap {
             margin-bottom: 10px;
@@ -597,8 +582,89 @@
             background: linear-gradient(135deg, #E8B84B, #C9972A);
             color: #1B3A2A;
         }
+        /* GPS 위치 인증 모달 */
+        .gps-modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 200;
+            background: rgba(100,170,210,0.35); backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            align-items: flex-end; justify-content: center;
+        }
+        .gps-modal-overlay.show { display: flex; }
+        .gps-modal {
+            background: linear-gradient(180deg, #f0faff 0%, #e4f5fb 100%);
+            border: 2.5px solid #a8d8ee;
+            border-bottom: none;
+            border-radius: 24px 24px 0 0;
+            padding: 10px 20px max(28px, calc(env(safe-area-inset-bottom,0px) + 20px));
+            width: 100%; max-width: 480px;
+            box-shadow: 0 -6px 32px rgba(80,170,210,0.18);
+            animation: slideUp 0.28s cubic-bezier(.4,0,.2,1) forwards;
+        }
+        @keyframes slideUp { from{transform:translateY(100%);} to{transform:translateY(0);} }
+
+        /* 손잡이 바 */
+        .gps-modal::before {
+            content: ''; display: block;
+            width: 40px; height: 4px; border-radius: 99px;
+            background: #a8d8ee; margin: 0 auto 18px;
+        }
+
+        .gps-modal-header { text-align: center; margin-bottom: 16px; }
+        .gps-modal-icon { font-size: 34px; margin-bottom: 6px; }
+        .gps-modal h3 {
+            font-family: 'Noto Sans KR', sans-serif; font-size: 17px;
+            font-weight: 900; color: #1a2e28; margin-bottom: 4px; letter-spacing: -0.3px;
+        }
+        .gps-modal-title {
+            display: inline-block;
+            font-size: 13px; font-weight: 700; color: white;
+            background: #3BB8D8; border-radius: 20px;
+            padding: 3px 14px; letter-spacing: 0.3px;
+        }
+
+        .gps-status-box {
+            background: white; border-radius: 16px;
+            border: 2px solid #a8d8ee;
+            padding: 18px 16px; text-align: center; margin-bottom: 14px; min-height: 88px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+            box-shadow: 0 3px 10px rgba(80,170,210,0.1);
+        }
+        .gps-status-icon { font-size: 26px; }
+        .gps-status-text {
+            font-size: 13px; color: #4a7a70; line-height: 1.65;
+            white-space: pre-line; font-weight: 500;
+        }
+
+        .gps-verify-btn {
+            width: 100%; padding: 15px; border-radius: 20px; border: none;
+            background: #3BB8D8; color: white;
+            font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
+            cursor: pointer; margin-bottom: 10px;
+            box-shadow: 0 4px 14px rgba(59,184,216,0.35);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .gps-verify-btn:active { transform: scale(0.97); box-shadow: 0 2px 8px rgba(59,184,216,0.2); }
+        .gps-verify-btn:disabled {
+            background: #b0ccd8; color: rgba(255,255,255,0.7);
+            box-shadow: none; cursor: not-allowed;
+        }
+
+        .gps-retry-btn {
+            width: 100%; padding: 13px; border-radius: 20px; border: 2px solid #4DC95A;
+            background: white; color: #2aaa48;
+            font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 10px;
+            transition: background 0.15s;
+        }
+        .gps-retry-btn:active { background: #eafaf0; }
+
+        .gps-cancel-btn {
+            width: 100%; padding: 12px; border-radius: 20px; border: 2px solid #c0dde8;
+            background: transparent; color: #7a9a90;
+            font-size: 14px; font-weight: 700; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .gps-cancel-btn:active { background: rgba(168,216,238,0.2); }
     </style>
-</head>
 <body>
 <div class="app">
 
@@ -818,12 +884,12 @@
 
             <!-- 기념품 버튼 -->
             <button class="gift-btn" id="giftBtn" onclick="claimGift()">🎁 기념품 수령하기</button>
-            <p class="gift-btn-sub">안내 데스크에 인증번호를 제시하세요</p>
+            <p class="gift-btn-sub" id="giftBtnSub">직원 확인 후 수령 처리됩니다 (1회 한정)</p>
 
         </div>
     </div>
 
-    <!-- 두 번째 페이지: 여행자 등록 -->
+    <!-- 두 번째 페이지: 구글 로그인 -->
     <div class="page" id="page-auth">
 
         <!-- 영상: 풀화면 배경 -->
@@ -841,29 +907,12 @@
 
         <!-- 하단 반투명 폼 -->
         <div class="form-panel">
-            <!-- 카카오 간편 로그인 -->
-            <button class="kakao-btn" onclick="kakaoLogin()">
-                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                    <path d="M11 2C6.029 2 2 5.358 2 9.5c0 2.607 1.638 4.9 4.1 6.22l-.9 3.28 3.8-2.5c.63.09 1.29.14 1.98.14 4.97 0 9-3.358 9-7.5S15.97 2 11 2z" fill="#191919"/>
-                </svg>
-                카카오 간편 로그인
+            <div id="authStatus" style="text-align:center; color:rgba(27,58,42,0.7); font-size:14px; margin-bottom:12px; min-height:20px;"></div>
+            <button id="googleLoginBtn" onclick="loginWithGoogle()" style="width:100%; padding:16px; border-radius:14px; border:1.5px solid rgba(255,255,255,0.7); background:rgba(255,255,255,0.9); color:#1B3A2A; font-size:16px; font-weight:700; font-family:'Noto Sans KR',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; box-shadow:0 4px 16px rgba(0,0,0,0.1); transition:transform 0.1s;">
+                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                Google 계정으로 시작하기
             </button>
-            <div class="or-divider"><span>또는 직접 입력</span></div>
-            <input type="text" id="userName" placeholder="성함을 입력하세요">
-            <input type="tel" id="userPhone" placeholder="전화번호를 입력하세요">
-
-            <div class="privacy-wrap">
-                <div class="privacy-summary">
-                    <strong>개인정보 수집 및 이용 동의</strong><br>
-                    수집항목: 성명, 전화번호 · 수집목적: 스탬프 투어 참여자 확인 및 경품 제공 · 보유기간: 행사 종료 후 6개월 · 개인정보 수집 및 이용에 동의하지 않으실 경우 투어 참여가 제한될 수 있습니다.
-                </div>
-                <div class="privacy-check-row" onclick="togglePrivacy()">
-                    <input type="checkbox" id="privacyCheck" onclick="event.stopPropagation(); document.getElementById('startBtn').disabled = !this.checked;">
-                    <label for="privacyCheck" onclick="event.stopPropagation(); togglePrivacy()">개인정보 수집 및 이용에 동의합니다 (필수)</label>
-                </div>
-            </div>
-
-            <button id="startBtn" onclick="saveUser()" disabled>투어 시작하기</button>
+            <p style="text-align:center; font-size:11px; color:rgba(27,58,42,0.5); line-height:1.6;">구글 계정의 고유 ID만 사용되며<br>개인정보는 수집되지 않습니다</p>
         </div>
 
     </div>
@@ -873,47 +922,11 @@
     /* ── Google Sheets 연동 ── */
     const SHEET_URL = 'https://script.google.com/macros/s/AKfycbz7pix1InQntv_wsBH7B80euBseaFE6gW19NQmbO1jZTEaJEbIelP7f5j_i6OAKhm1-LQ/exec';
 
-    /* ── 카카오 로그인 ── */
-    if (window.Kakao && !Kakao.isInitialized()) {
-        Kakao.init('503546ac78f91957aaefeff0cb902d86');
-    }
-
-    function kakaoLogin() {
-        if (!window.Kakao) { alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
-        Kakao.Auth.login({
-            success: function(authObj) {
-                Kakao.API.request({
-                    url: '/v2/user/me',
-                    success: function(res) {
-                        const kakaoName = res.kakao_account?.profile?.nickname || res.properties?.nickname || '';
-                        // 이름 자동 입력, 전화번호는 직접 입력 유지
-                        if (kakaoName) {
-                            document.getElementById('userName').value = kakaoName;
-                        }
-                        // 체크박스 자동 동의 처리
-                        const cb = document.getElementById('privacyCheck');
-                        cb.checked = true;
-                        document.getElementById('startBtn').disabled = false;
-                        // 전화번호 입력 필드로 포커스
-                        document.getElementById('userPhone').focus();
-                        alert('카카오 로그인 완료!\n전화번호를 입력 후 투어를 시작하세요.');
-                    },
-                    fail: function(err) {
-                        alert('사용자 정보를 가져오지 못했습니다.');
-                    }
-                });
-            },
-            fail: function(err) {
-                alert('카카오 로그인에 실패했습니다.\n직접 입력해주세요.');
-            }
-        });
-    }
-
     function sendToSheet(event, extra) {
-        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+        const fbUser = window._fbUser;
         const data = {
-            name: user.name || '',
-            phone: user.phone || '',
+            name: fbUser ? (fbUser.displayName || fbUser.uid) : '비로그인',
+            phone: '',
             event: event,
             certNumber: extra || ''
         };
@@ -962,33 +975,8 @@
         if (video && video.paused) { video.muted = true; video.play().catch(() => {}); }
     });
 
-    function togglePrivacy() {
-        const cb = document.getElementById('privacyCheck');
-        cb.checked = !cb.checked;
-        document.getElementById('startBtn').disabled = !cb.checked;
-    }
-
     function saveUser() {
-        const name = document.getElementById('userName').value.trim();
-        const phone = document.getElementById('userPhone').value.trim();
-        if (!name || !phone) return alert("정보를 입력해 주십시오.");
-        if (!document.getElementById('privacyCheck').checked) return alert("개인정보 수집 및 이용에 동의해 주십시오.");
-
-        const prev = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
-
-        // 이전 사용자와 이름 또는 전화번호가 다르면 전체 초기화
-        if (prev.name && prev.phone && (prev.name !== name || prev.phone !== phone)) {
-            if (!confirm("등록 정보가 다릅니다.\n모든 스탬프 인증이 초기화됩니다.\n계속하시겠습니까?")) return;
-            localStorage.removeItem('seonbi_stamps');
-            localStorage.removeItem('seonbi_cert_' + prev.phone);
-            localStorage.removeItem('seonbi_gift_claimed');
-            localStorage.removeItem('seonbi_complete_sent');
-            stamps = [];
-        }
-
-        localStorage.setItem('seonbi_user', JSON.stringify({ name, phone }));
-        sendToSheet('투어시작');
-        goTo('page-stamp');
+        // 구글 로그인으로 대체됨 - 하위 호환용 빈 함수
     }
 
     /* ── 스탬프 로직 ── */
@@ -1016,29 +1004,136 @@
     /* ── 스탬프 인증 ── */
     const siteNames = ['소수서원','소수박물관','선비촌','선비문화수련원','선비세상'];
 
+    /* ── GPS 좌표 (반경 100m) ── */
+    const SITES = [
+        { lat: 36.931165, lon: 128.585024 }, // 1. 소수서원
+        { lat: 36.931165, lon: 128.585024 }, // 2. 소수박물관
+        { lat: 36.931165, lon: 128.585024 }, // 3. 선비촌
+        { lat: 36.931165, lon: 128.585024 }, // 4. 선비문화수련원
+        { lat: 36.931165, lon: 128.585024 }  // 5. 선비세상
+    ];
+    const GPS_RADIUS = 100; // 미터
+    const DEMO_MODE = false; // 시연회 때만 true로 변경
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180;
+        const df = (lat2 - lat1) * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(df/2)**2 + Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
     function stampSite(n) {
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
-        stamps.push(n);
-        localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
-        sendToSheet('스탬프인증', siteNames[n - 1]);
-        loadStamps();
-        drawPaths();
-        showStampSuccess(siteNames[n - 1]);
+
+        // 시연 모드: GPS 검증 없이 즉시 인증
+        if (DEMO_MODE) {
+            stamps.push(n);
+            localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+            sendToSheet('스탬프인증', siteNames[n-1]);
+            loadStamps();
+            drawPaths();
+            showStampSuccess(siteNames[n-1]);
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            alert('이 브라우저는 위치 서비스를 지원하지 않습니다.');
+            return;
+        }
+        showGpsModal(n);
+    }
+
+    function showGpsModal(n) {
+        const modal = document.getElementById('gpsModal');
+        modal.dataset.site = n;
+        modal.querySelector('.gps-modal-title').textContent = siteNames[n-1];
+        setGpsStatus('waiting');
+        modal.classList.add('show');
+    }
+
+    function closeGpsModal() {
+        document.getElementById('gpsModal').classList.remove('show');
+    }
+
+    function setGpsStatus(state, msg) {
+        const icon = document.getElementById('gpsStatusIcon');
+        const text = document.getElementById('gpsStatusText');
+        const retryBtn = document.getElementById('gpsRetryBtn');
+        const states = {
+            waiting:  { icon: '📍', text: '버튼을 눌러 현재 위치를 확인합니다.' },
+            loading:  { icon: '🔍', text: 'GPS 신호를 확인하는 중...' },
+            ok:       { icon: '✅', text: msg || '위치 인증 성공!' },
+            fail:     { icon: '❌', text: msg || '위치 인증 실패' },
+            error:    { icon: '⚠️', text: msg || '오류가 발생했습니다.' }
+        };
+        const s = states[state] || states.waiting;
+        icon.textContent = s.icon;
+        text.textContent = s.text;
+        retryBtn.style.display = (state === 'fail' || state === 'error') ? 'block' : 'none';
+        document.getElementById('gpsVerifyBtn').style.display = (state === 'waiting' || state === 'loading') ? 'block' : 'none';
+        document.getElementById('gpsVerifyBtn').disabled = (state === 'loading');
+    }
+
+    function doGpsVerify() {
+        const n = parseInt(document.getElementById('gpsModal').dataset.site);
+        setGpsStatus('loading');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+                const target = SITES[n-1];
+                const dist = haversine(lat, lon, target.lat, target.lon);
+                if (dist <= GPS_RADIUS) {
+                    setGpsStatus('ok', `인증 완료! (${Math.round(dist)}m 이내)`);
+                    setTimeout(() => {
+                        closeGpsModal();
+                        stamps.push(n);
+                        localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+                        sendToSheet('스탬프인증', siteNames[n-1]);
+                        loadStamps();
+                        drawPaths();
+                        showStampSuccess(siteNames[n-1]);
+                    }, 900);
+                } else {
+                    setGpsStatus('fail', `목표 지점에서 약 ${Math.round(dist)}m 떨어져 있습니다.\n${GPS_RADIUS}m 이내로 이동 후 다시 시도하세요.`);
+                }
+            },
+            (err) => {
+                const msgs = { 1: 'GPS 권한이 거부되었습니다.\n브라우저 설정에서 위치 권한을 허용해 주세요.', 2: '위치를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', 3: '요청 시간이 초과되었습니다. 다시 시도해 주세요.' };
+                setGpsStatus('error', msgs[err.code] || '위치 확인 중 오류가 발생했습니다.');
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
     }
 
 
-    /* ── 완주 페이지 ── */
-    function initCompletePage() {
-        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
-        const name = user.name || '선비';
+    /* ── 완주 페이지 (Firebase 기반) ── */
+    async function initCompletePage() {
+        const user = window._fbUser;
+        const uid  = user ? user.uid : null;
+        const name = user ? (user.displayName || '선비') : '선비';
 
-        // 인증번호: 이름+전화 기반 고정 번호 생성
-        let certKey = 'seonbi_cert_' + (user.phone || 'guest');
-        let cert = localStorage.getItem(certKey);
-        if (!cert) {
-            const rand = Math.floor(100000 + Math.random() * 900000);
-            cert = '선비-' + rand;
-            localStorage.setItem(certKey, cert);
+        // 인증번호: uid 기반으로 Firestore에서 가져오거나 생성
+        let cert = null;
+        if (uid) {
+            const { db, doc, getDoc, setDoc, serverTimestamp } = window._fb;
+            const ref = doc(db, 'completions', uid);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+                cert = snap.data().certNumber;
+            } else {
+                const rand = Math.floor(100000 + Math.random() * 900000);
+                cert = '선비-' + rand;
+                await setDoc(ref, { certNumber: cert, name, completedAt: serverTimestamp(), giftClaimed: false });
+                sendToSheet('완주', cert);
+            }
+        } else {
+            // 비로그인 폴백 (로컬)
+            cert = localStorage.getItem('seonbi_cert_guest');
+            if (!cert) {
+                cert = '선비-' + Math.floor(100000 + Math.random() * 900000);
+                localStorage.setItem('seonbi_cert_guest', cert);
+            }
         }
 
         const now = new Date();
@@ -1048,41 +1143,66 @@
             String(now.getHours()).padStart(2,'0') + ':' +
             String(now.getMinutes()).padStart(2,'0');
 
-        document.getElementById('certName').textContent = name + ' 선비님';
+        document.getElementById('certName').textContent = name.split(' ')[0] + ' 선비님';
         document.getElementById('certNumber').textContent = cert;
         document.getElementById('certDate').textContent = '완주일시: ' + dateStr;
 
-        // 완주 시트 전송 (최초 1회만)
-        if (!localStorage.getItem('seonbi_complete_sent')) {
-            sendToSheet('완주', cert);
-            localStorage.setItem('seonbi_complete_sent', 'yes');
-        }
-
-        // 수령 완료 상태 복원
-        if (localStorage.getItem('seonbi_gift_claimed') === 'yes') {
-            setTimeout(setGiftClaimed, 100);
+        // 수령 완료 상태 복원 (Firestore 우선)
+        if (uid) {
+            const { db, doc, getDoc } = window._fb;
+            const snap = await getDoc(doc(db, 'completions', uid));
+            if (snap.exists() && snap.data().giftClaimed) setTimeout(setGiftClaimed, 100);
         }
     }
 
     function claimGift() {
-        // 이미 수령 완료 상태면 무시
-        if (localStorage.getItem('seonbi_gift_claimed') === 'yes') return;
+        const btn = document.getElementById('giftBtn');
+        if (btn.disabled) return;
+        // 직원 코드 확인 모달 열기
         document.getElementById('staffModal').classList.add('show');
         document.getElementById('staffCodeInput').value = '';
         document.getElementById('staffCodeError').style.display = 'none';
         setTimeout(() => document.getElementById('staffCodeInput').focus(), 200);
     }
 
-    function confirmStaffCode() {
+    async function confirmStaffCode() {
         const code = document.getElementById('staffCodeInput').value.trim();
-        if (code === '2026') {
-            localStorage.setItem('seonbi_gift_claimed', 'yes');
-            closeModal();
-            setGiftClaimed();
-        } else {
+        if (code !== '2026') {
             document.getElementById('staffCodeError').style.display = 'block';
             document.getElementById('staffCodeInput').value = '';
             document.getElementById('staffCodeInput').focus();
+            return;
+        }
+
+        closeModal();
+        const btn = document.getElementById('giftBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ 처리 중...';
+
+        const uid = window._fbUser ? window._fbUser.uid : null;
+        if (!uid) { alert('로그인이 필요합니다.'); btn.disabled = false; btn.textContent = '🎁 기념품 수령하기'; return; }
+
+        try {
+            const { db, doc, getDoc, setDoc, serverTimestamp } = window._fb;
+            const ref  = doc(db, 'completions', uid);
+            const snap = await getDoc(ref);
+
+            if (!snap.exists()) {
+                btn.disabled = false;
+                btn.textContent = '🎁 기념품 수령하기';
+                alert('완주 기록을 찾을 수 없습니다.');
+                return;
+            }
+            if (snap.data().giftClaimed) { setGiftClaimed(); return; }
+
+            await setDoc(ref, { giftClaimed: true, giftClaimedAt: serverTimestamp() }, { merge: true });
+            sendToSheet('기념품수령', snap.data().certNumber);
+            setGiftClaimed();
+
+        } catch(e) {
+            btn.disabled = false;
+            btn.textContent = '🎁 기념품 수령하기';
+            alert('오류가 발생했습니다. 다시 시도해 주세요.');
         }
     }
 
@@ -1098,6 +1218,7 @@
         btn.style.color = 'rgba(255,255,255,0.45)';
         btn.style.boxShadow = 'none';
         btn.style.cursor = 'not-allowed';
+        document.querySelector('.gift-btn-sub').textContent = '이미 수령이 완료되었습니다';
     }
 
     /* initCompletePage 안에서 수령 완료 상태 복원 */
@@ -1146,19 +1267,33 @@
         }
     }
 
-    window.onload = () => {};
+    /* ── 구글 로그인 ── */
+    async function loginWithGoogle() {
+        const btn = document.getElementById('googleLoginBtn');
+        const status = document.getElementById('authStatus');
+        btn.disabled = true;
+        status.textContent = '로그인 중...';
+        try {
+            const { auth, provider, signInWithPopup } = window._fb;
+            await signInWithPopup(auth, provider);
+            // onAuthStateChanged 가 _onAuthReady 를 호출해 페이지 전환
+        } catch(e) {
+            status.textContent = '로그인에 실패했습니다. 다시 시도해 주세요.';
+            btn.disabled = false;
+        }
+    }
+
+    /* 로그인 완료 콜백 */
+    window._onAuthReady = function(user) {
+        if (!user) return;
+        // 이미 stamp 페이지면 스킵
+        if (document.getElementById('page-stamp').classList.contains('active')) return;
+        if (document.getElementById('page-complete').classList.contains('active')) return;
+        sendToSheet('투어시작');
+        goTo('page-stamp');
+    };
 </script>
 
-    <!-- 스탬프 인증 완료 팝업 -->
-    <div class="stamp-success-overlay" id="stampSuccessOverlay">
-        <div class="stamp-success-box">
-            <div class="stamp-success-icon">🎉</div>
-            <div class="stamp-success-title">스탬프 인증 완료!</div>
-            <div class="stamp-success-name" id="successSiteName"></div>
-            <div class="stamp-success-desc">해당 거점 방문이 확인되었습니다.<br>다음 거점도 방문해보세요!</div>
-            <button class="stamp-success-btn" onclick="closeStampSuccess()">확인</button>
-        </div>
-    </div>
 
     <!-- 직원 확인 코드 모달 -->
     <div class="staff-modal-overlay" id="staffModal" onclick="if(event.target===this)closeModal()">
@@ -1176,5 +1311,37 @@
         </div>
     </div>
 
+    <!-- GPS 위치 인증 모달 -->
+    <div class="gps-modal-overlay" id="gpsModal" onclick="if(event.target===this)closeGpsModal()">
+        <div class="gps-modal">
+            <div class="gps-modal-header">
+                <div class="gps-modal-icon">🗺️</div>
+                <h3>위치 인증</h3>
+                <p class="gps-modal-title"></p>
+            </div>
+            <div class="gps-status-box">
+                <div class="gps-status-icon" id="gpsStatusIcon">📍</div>
+                <div class="gps-status-text" id="gpsStatusText">버튼을 눌러 현재 위치를 확인합니다.</div>
+            </div>
+            <button class="gps-verify-btn" id="gpsVerifyBtn" onclick="doGpsVerify()">📡 현재 위치로 인증하기</button>
+            <button class="gps-retry-btn" id="gpsRetryBtn" style="display:none" onclick="setGpsStatus('waiting')">↩ 다시 시도하기</button>
+            <button class="gps-cancel-btn" onclick="closeGpsModal()">취소</button>
+        </div>
+    </div>
+
+
+    <div class="stamp-success-overlay" id="stampSuccessOverlay">
+        <div class="stamp-success-box">
+            <div class="stamp-success-icon">🎉</div>
+            <div class="stamp-success-title">스탬프 인증 완료!</div>
+            <div class="stamp-success-name" id="successSiteName"></div>
+            <div class="stamp-success-desc">해당 거점 방문이 확인되었습니다.<br>다음 거점도 방문해보세요!</div>
+            <button class="stamp-success-btn" onclick="closeStampSuccess()">확인</button>
+        </div>
+    </div>
+
+
+
 </body>
 </html>
+
