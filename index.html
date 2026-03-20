@@ -411,7 +411,6 @@
             animation: fadeUp 0.5s ease 0.5s both;
         }
 
-        /* 5개 아이콘 일렬 */
         /* 5개 아이콘 가로 배열 */
         .complete-icons {
             display: flex; flex-direction: row; gap: 4px;
@@ -859,7 +858,6 @@
 
         <!-- 하단 반투명 폼 -->
         <div class="form-panel">
-        <!-- 소셜 로그인 버튼 -->
             <div class="social-btns">
                 <button class="kakao-btn" onclick="kakaoLogin()" style="background:none; border:none; padding:0; cursor:pointer; width:100%; margin-bottom:10px; display:block; height:54px;">
                     <img src="kakao_login_large_wide.png" alt="카카오 로그인" style="width:100%; height:54px; object-fit:cover; border-radius:14px;">
@@ -894,6 +892,8 @@
             window.history.replaceState({}, '', window.location.pathname);
             const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
             if (!user.name) user.name = '카카오사용자';
+            // ✅ 수정: loginType 추가
+            user.loginType = '카카오';
             localStorage.setItem('seonbi_user', JSON.stringify(user));
             sendToSheet('투어시작');
             goTo('page-stamp');
@@ -901,7 +901,8 @@
         // index.html에서 직접 code가 붙은 경우 (혹시 모를 fallback)
         const code = params.get('code');
         if (code) {
-            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자' }));
+            // ✅ 수정: loginType 추가
+            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', loginType: '카카오' }));
             sendToSheet('투어시작');
             window.history.replaceState({}, '', window.location.pathname);
             goTo('page-stamp');
@@ -916,6 +917,7 @@
         window.location.href = kakaoAuthURL;
     }
 
+    /* ── 구글 로그인 ── */
     function googleLogin() {
         if (!window.google) { alert('구글 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
         google.accounts.oauth2.initTokenClient({
@@ -927,7 +929,8 @@
                         headers: { Authorization: 'Bearer ' + response.access_token }
                     }).then(r => r.json()).then(profile => {
                         const name = profile.name || '구글사용자';
-                        localStorage.setItem('seonbi_user', JSON.stringify({ name }));
+                        // ✅ 수정: loginType 추가
+                        localStorage.setItem('seonbi_user', JSON.stringify({ name, loginType: '구글' }));
                         sendToSheet('투어시작');
                         goTo('page-stamp');
                     });
@@ -936,10 +939,12 @@
         }).requestAccessToken();
     }
 
+    /* ── ✅ 수정: sendToSheet — loginType 포함 ── */
     function sendToSheet(event, extra) {
         const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
         const data = {
             name: user.name || '',
+            loginType: user.loginType || '',
             event: event,
             certNumber: extra || ''
         };
@@ -987,8 +992,6 @@
         const video = document.getElementById('shared-video');
         if (video && video.paused) { video.muted = true; video.play().catch(() => {}); }
     });
-
-
 
     /* ── 스탬프 로직 ── */
     let stamps = JSON.parse(localStorage.getItem('seonbi_stamps') || '[]');
@@ -1106,13 +1109,12 @@
         document.getElementById('stampSuccessOverlay').classList.remove('show');
     }
 
-
     /* ── 완주 페이지 ── */
     function initCompletePage() {
         const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
         const name = user.name || '선비';
 
-        // 인증번호: 이름+전화 기반 고정 번호 생성
+        // 인증번호: 이름 기반 고정 번호 생성
         let certKey = 'seonbi_cert_' + (user.name || 'guest');
         let cert = localStorage.getItem(certKey);
         if (!cert) {
@@ -1145,7 +1147,6 @@
     }
 
     function claimGift() {
-        // 이미 수령 완료 상태면 무시
         if (localStorage.getItem('seonbi_gift_claimed') === 'yes') return;
         document.getElementById('staffModal').classList.add('show');
         document.getElementById('staffCodeInput').value = '';
@@ -1180,7 +1181,6 @@
         btn.style.cursor = 'not-allowed';
     }
 
-    /* initCompletePage 안에서 수령 완료 상태 복원 */
     function drawPaths() {
         const svg = document.getElementById('pathSvg');
         const map = document.getElementById('stampMap');
@@ -1229,7 +1229,6 @@
     window.onload = () => {};
 </script>
 
-    <!-- 스탬프 인증 완료 팝업 -->
     <!-- GPS 인증 모달 -->
     <div class="gps-modal-overlay" id="gpsModal">
         <div class="gps-modal-box">
@@ -1241,6 +1240,7 @@
         </div>
     </div>
 
+    <!-- 스탬프 인증 완료 팝업 -->
     <div class="stamp-success-overlay" id="stampSuccessOverlay">
         <div class="stamp-success-box">
             <div class="stamp-success-icon">🎉</div>
