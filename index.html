@@ -617,6 +617,30 @@
     </style>
 </head>
 <body>
+<!-- 인앱브라우저 감지 오버레이 -->
+<div id="inapp-overlay" style="display:none; position:fixed; inset:0; z-index:9999;
+    background:rgba(0,0,0,0.92); flex-direction:column; align-items:center; justify-content:center;
+    padding:32px 24px; text-align:center;">
+    <div style="font-size:52px; margin-bottom:16px;">🌐</div>
+    <p style="font-family:'Noto Serif KR',serif; font-size:20px; font-weight:900;
+        color:#E8B84B; margin-bottom:12px; letter-spacing:1px;">외부 브라우저로 열어주세요</p>
+    <p style="font-size:14px; color:rgba(255,255,255,0.75); line-height:1.8; margin-bottom:28px;">
+        카카오톡 내 브라우저에서는<br>구글 로그인이 지원되지 않습니다.<br><br>
+        아래 버튼을 눌러 Safari 또는<br>Chrome에서 열어주세요.
+    </p>
+    <button onclick="openExternalBrowser()"
+        style="width:100%; padding:18px; border-radius:14px; border:none;
+        background:linear-gradient(135deg,#E8B84B,#C9972A);
+        color:#1B3A2A; font-family:'Noto Serif KR',serif;
+        font-size:17px; font-weight:900; letter-spacing:1px; cursor:pointer;
+        box-shadow:0 4px 20px rgba(232,184,75,0.4);">
+        🔗 외부 브라우저로 열기
+    </button>
+    <p style="font-size:11px; color:rgba(255,255,255,0.35); margin-top:16px; line-height:1.6;">
+        카카오 로그인은 카카오톡 내에서도 이용 가능합니다
+    </p>
+</div>
+
 <div class="app">
 
     <!-- 첫 번째 페이지: 영상 배경 -->
@@ -879,6 +903,48 @@
 
     </div>
 </div>
+
+<!-- 인앱브라우저 감지 스크립트 -->
+<script>
+    (function() {
+        const ua = navigator.userAgent.toLowerCase();
+        const isKakao = ua.includes('kakaotalk');
+        const isNaver = ua.includes('naver');
+        const isInApp = isKakao || isNaver ||
+            (ua.includes('wv') && ua.includes('android')) ||
+            (ua.includes('instagram') || ua.includes('fbav') || ua.includes('fban'));
+
+        if (isInApp) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const overlay = document.getElementById('inapp-overlay');
+                if (overlay) overlay.style.display = 'flex';
+            });
+        }
+    })();
+
+    function openExternalBrowser() {
+        const url = window.location.href;
+        const ua = navigator.userAgent.toLowerCase();
+
+        // iOS 카카오톡: kakaotalk:// scheme으로 외부 브라우저 유도
+        if (/iphone|ipad|ipod/.test(ua)) {
+            // iOS는 location 변경으로 Safari 유도
+            window.location.href = 'x-safari-' + url;
+            setTimeout(function() {
+                window.location.href = url;
+            }, 500);
+        } else {
+            // Android: intent scheme으로 외부 브라우저 열기
+            const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
+                '#Intent;scheme=https;package=com.android.chrome;end';
+            window.location.href = intentUrl;
+            setTimeout(function() {
+                // Chrome 없을 경우 기본 브라우저로
+                window.location.href = url;
+            }, 1500);
+        }
+    }
+</script>
 
 <!-- ── Firebase SDK ── -->
 <script type="module">
