@@ -996,26 +996,33 @@
        로그인 처리
     ════════════════════════════════════════ */
 
-    // 카카오 콜백 처리
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('kakao') === 'success') {
-        window.history.replaceState({}, '', window.location.pathname);
-        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
-        if (!user.name) user.name = '카카오사용자';
-        user.loginType = '카카오';
-        localStorage.setItem('seonbi_user', JSON.stringify(user));
-        await fbSaveUser(user.name, '카카오');
-        sendToSheet('투어시작');
-        goTo('page-stamp');
+    // 카카오 콜백 처리 — async 함수로 감싸서 await 사용 가능하게
+    async function handleKakaoCallback() {
+        const params = new URLSearchParams(window.location.search);
+
+        if (params.get('kakao') === 'success') {
+            window.history.replaceState({}, '', window.location.pathname);
+            const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+            if (!user.name) user.name = '카카오사용자';
+            user.loginType = '카카오';
+            localStorage.setItem('seonbi_user', JSON.stringify(user));
+            try { await fbSaveUser(user.name, '카카오'); } catch(e) {}
+            sendToSheet('투어시작');
+            window.goTo('page-stamp');
+            return;
+        }
+
+        const code = params.get('code');
+        if (code) {
+            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', loginType: '카카오' }));
+            try { await fbSaveUser('카카오사용자', '카카오'); } catch(e) {}
+            sendToSheet('투어시작');
+            window.history.replaceState({}, '', window.location.pathname);
+            window.goTo('page-stamp');
+        }
     }
-    const code = params.get('code');
-    if (code) {
-        localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', loginType: '카카오' }));
-        await fbSaveUser('카카오사용자', '카카오');
-        sendToSheet('투어시작');
-        window.history.replaceState({}, '', window.location.pathname);
-        goTo('page-stamp');
-    }
+    // DOM 로드 후 실행
+    window.addEventListener('DOMContentLoaded', handleKakaoCallback);
 
     // 카카오 로그인
     window.kakaoLogin = function() {
