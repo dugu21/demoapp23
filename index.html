@@ -411,7 +411,6 @@
             animation: fadeUp 0.5s ease 0.5s both;
         }
 
-        /* 5개 아이콘 일렬 */
         /* 5개 아이콘 가로 배열 */
         .complete-icons {
             display: flex; flex-direction: row; gap: 4px;
@@ -859,7 +858,6 @@
 
         <!-- 하단 반투명 폼 -->
         <div class="form-panel">
-        <!-- 소셜 로그인 버튼 -->
             <div class="social-btns">
                 <button class="kakao-btn" onclick="kakaoLogin()" style="background:none; border:none; padding:0; cursor:pointer; width:100%; margin-bottom:10px; display:block; height:54px;">
                     <img src="kakao_login_large_wide.png" alt="카카오 로그인" style="width:100%; height:54px; object-fit:cover; border-radius:14px;">
@@ -882,115 +880,208 @@
     </div>
 </div>
 
-<script>
-    /* ── Google Sheets 연동 ── */
-    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbw1g3JpxPapak50tp7UUqY5tDmwOVFjJAs7i6Jj3zaAAd9c5caZG9efLNfXzVlaHXe2oA/exec';
+<!-- ── Firebase SDK ── -->
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getFirestore, doc, getDoc, setDoc, addDoc, collection, serverTimestamp }
+        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    /* ── 카카오 콜백 처리 ── */
-    window.addEventListener('load', () => {
-        const params = new URLSearchParams(window.location.search);
-        // 카카오 콜백 페이지에서 넘어온 경우
-        if (params.get('kakao') === 'success') {
-            window.history.replaceState({}, '', window.location.pathname);
-            const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
-            if (!user.name) user.name = '카카오사용자';
-            localStorage.setItem('seonbi_user', JSON.stringify(user));
-            sendToSheet('투어시작');
-            goTo('page-stamp');
-        }
-        // index.html에서 직접 code가 붙은 경우 (혹시 모를 fallback)
-        const code = params.get('code');
-        if (code) {
-            localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자' }));
-            sendToSheet('투어시작');
-            window.history.replaceState({}, '', window.location.pathname);
-            goTo('page-stamp');
-        }
-    });
+    /* ── Firebase 초기화 ── */
+    const firebaseConfig = {
+        apiKey: "AIzaSyC8zyPQGfOaPWK6VwlbH9gmpgq3cOMc9KA",
+        authDomain: "seonbi-stamp-tour.firebaseapp.com",
+        projectId: "seonbi-stamp-tour",
+        storageBucket: "seonbi-stamp-tour.firebasestorage.app",
+        messagingSenderId: "573527703368",
+        appId: "1:573527703368:web:8ccb5135f7aecd7cfffd7d",
+        measurementId: "G-HTFWMNHMVV"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    /* ── 카카오 로그인 (REST API 방식) ── */
-    function kakaoLogin() {
-        const KAKAO_CLIENT_ID = '3bbc7589eb3b023d5c17f179f2d606e9';
-        const REDIRECT_URI = 'https://seonbiroad.kr/oauth/kakao/callback';
-        const kakaoAuthURL = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-        window.location.href = kakaoAuthURL;
+    /* ── Google Sheets 연동 (보조 로그용) ── */
+    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxL924UVuWRCU5dZ2nwJbwkHDhRf8GLMcTzNZ8RjoM7Y3DBzrHkk6CMK9YWCw5A4dvFuw/exec';
+
+    /* ── 사용자 ID 생성/로드 (로컬스토리지 기반 고유 식별자) ── */
+    function getUserId() {
+        let uid = localStorage.getItem('seonbi_uid');
+        if (!uid) {
+            uid = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('seonbi_uid', uid);
+        }
+        return uid;
     }
 
-    function googleLogin() {
-        if (!window.google) { alert('구글 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
-        google.accounts.oauth2.initTokenClient({
-            client_id: '86806878845-ukm5he305bqa9miea9i0rks4gca9tqsv.apps.googleusercontent.com',
-            scope: 'profile email',
-            callback: function(response) {
-                if (response.access_token) {
-                    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: 'Bearer ' + response.access_token }
-                    }).then(r => r.json()).then(profile => {
-                        const name = profile.name || '구글사용자';
-                        localStorage.setItem('seonbi_user', JSON.stringify({ name }));
-                        sendToSheet('투어시작');
-                        goTo('page-stamp');
-                    });
-                }
-            }
-        }).requestAccessToken();
+    /* ════════════════════════════════════════
+       Firebase 저장 함수들
+    ════════════════════════════════════════ */
+
+    // 로그인 정보 저장 (users 컬렉션)
+    async function fbSaveUser(name, loginType) {
+        const uid = getUserId();
+        await setDoc(doc(db, 'users', uid), {
+            name,
+            loginType,
+            uid,
+            createdAt: serverTimestamp()
+        }, { merge: true });
     }
 
+    // 스탬프 인증 저장 (stamps 컬렉션)
+    async function fbSaveStamp(siteName) {
+        const uid = getUserId();
+        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+        await addDoc(collection(db, 'stamps'), {
+            uid,
+            name: user.name || '',
+            siteName,
+            stampedAt: serverTimestamp()
+        });
+    }
+
+    // 완주 인증번호 저장 (complete 컬렉션)
+    async function fbSaveComplete(certNumber) {
+        const uid = getUserId();
+        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+        await setDoc(doc(db, 'complete', uid), {
+            uid,
+            name: user.name || '',
+            certNumber,
+            completedAt: serverTimestamp(),
+            giftClaimed: false
+        });
+    }
+
+    // 기념품 수령 상태 저장 (complete 컬렉션 업데이트)
+    async function fbClaimGift() {
+        const uid = getUserId();
+        await setDoc(doc(db, 'complete', uid), {
+            giftClaimed: true,
+            giftClaimedAt: serverTimestamp()
+        }, { merge: true });
+    }
+
+    // 기념품 수령 상태 Firebase에서 조회
+    // 문서 삭제 = 초기화 → 버튼 다시 활성화
+    async function fbCheckGiftClaimed() {
+        const uid = getUserId();
+        try {
+            const snap = await getDoc(doc(db, 'complete', uid));
+            if (!snap.exists()) return false;        // 문서 없음(삭제됨) = 미수령
+            return snap.data().giftClaimed === true; // true일 때만 수령 완료
+        } catch(e) {
+            return false; // 오류 시 기본값: 활성화
+        }
+    }
+
+    /* ════════════════════════════════════════
+       Google Sheets 보조 로그
+    ════════════════════════════════════════ */
     function sendToSheet(event, extra) {
         const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
-        const data = {
-            name: user.name || '',
-            event: event,
-            certNumber: extra || ''
-        };
         fetch(SHEET_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify({
+                name: user.name || '',
+                loginType: user.loginType || '',
+                event,
+                certNumber: extra || ''
+            })
         }).catch(() => {});
     }
 
-    function goTo(id) {
+    /* ════════════════════════════════════════
+       로그인 처리
+    ════════════════════════════════════════ */
+
+    // 카카오 콜백 처리
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('kakao') === 'success') {
+        window.history.replaceState({}, '', window.location.pathname);
+        const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
+        if (!user.name) user.name = '카카오사용자';
+        user.loginType = '카카오';
+        localStorage.setItem('seonbi_user', JSON.stringify(user));
+        await fbSaveUser(user.name, '카카오');
+        sendToSheet('투어시작');
+        goTo('page-stamp');
+    }
+    const code = params.get('code');
+    if (code) {
+        localStorage.setItem('seonbi_user', JSON.stringify({ name: '카카오사용자', loginType: '카카오' }));
+        await fbSaveUser('카카오사용자', '카카오');
+        sendToSheet('투어시작');
+        window.history.replaceState({}, '', window.location.pathname);
+        goTo('page-stamp');
+    }
+
+    // 카카오 로그인
+    window.kakaoLogin = function() {
+        const KAKAO_CLIENT_ID = '3bbc7589eb3b023d5c17f179f2d606e9';
+        const REDIRECT_URI = 'https://seonbiroad.kr/oauth/kakao/callback';
+        window.location.href = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    };
+
+    // 구글 로그인
+    window.googleLogin = function() {
+        if (!window.google) { alert('구글 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+        google.accounts.oauth2.initTokenClient({
+            client_id: '86806878845-ukm5he305bqa9miea9i0rks4gca9tqsv.apps.googleusercontent.com',
+            scope: 'profile email',
+            callback: async function(response) {
+                if (response.access_token) {
+                    const profile = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: 'Bearer ' + response.access_token }
+                    }).then(r => r.json());
+                    const name = profile.name || '구글사용자';
+                    localStorage.setItem('seonbi_user', JSON.stringify({ name, loginType: '구글' }));
+                    await fbSaveUser(name, '구글');
+                    sendToSheet('투어시작');
+                    goTo('page-stamp');
+                }
+            }
+        }).requestAccessToken();
+    };
+
+    /* ════════════════════════════════════════
+       페이지 이동
+    ════════════════════════════════════════ */
+    window.goTo = function(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(id).classList.add('active');
-
         if (id === 'page-auth') {
             const video = document.getElementById('shared-video');
             if (video) tryPlayVideo(video);
         }
         if (id === 'page-stamp') { setTimeout(drawPaths, 120); loadStamps(); }
         if (id === 'page-complete') { initCompletePage(); }
-    }
+    };
 
     function tryPlayVideo(video) {
         if (!video) return;
         video.muted = true;
-        const promise = video.play();
-        if (promise !== undefined) {
-            promise.catch(() => {});
-        }
+        const p = video.play();
+        if (p) p.catch(() => {});
     }
 
-    // 페이지 로드 시 2페이지 영상 미리 준비
     window.addEventListener('load', () => {
         const video = document.getElementById('shared-video');
         if (video) { video.muted = true; video.load(); }
     });
-
-    // 첫 터치 시 영상 재생 시도 (크롬 정책 우회)
-    document.addEventListener('touchstart', function resumeVideo() {
-        const video = document.getElementById('shared-video');
-        if (video && video.paused) { video.muted = true; video.play().catch(() => {}); }
+    document.addEventListener('touchstart', () => {
+        const v = document.getElementById('shared-video');
+        if (v && v.paused) { v.muted = true; v.play().catch(() => {}); }
     }, { passive: true });
-    document.addEventListener('click', function resumeVideoClick() {
-        const video = document.getElementById('shared-video');
-        if (video && video.paused) { video.muted = true; video.play().catch(() => {}); }
+    document.addEventListener('click', () => {
+        const v = document.getElementById('shared-video');
+        if (v && v.paused) { v.muted = true; v.play().catch(() => {}); }
     });
 
-
-
-    /* ── 스탬프 로직 ── */
+    /* ════════════════════════════════════════
+       스탬프 로직
+    ════════════════════════════════════════ */
     let stamps = JSON.parse(localStorage.getItem('seonbi_stamps') || '[]');
 
     function loadStamps() {
@@ -1012,61 +1103,49 @@
         if (gauge) gauge.style.width = (count / 5 * 100) + '%';
     }
 
-    /* ── 스탬프 인증 ── */
     const siteNames = ['소수서원','소수박물관','선비촌','선비문화수련원','선비세상'];
-
-    // 각 거점 GPS 좌표 (위도, 경도)
     const siteCoords = [
-        { lat: 36.925024, lng: 128.580096 }, // 1. 소수서원
-        { lat: 36.925024, lng: 128.580096 }, // 2. 소수박물관
-        { lat: 36.925024, lng: 128.580096 }, // 3. 선비촌
-        { lat: 36.925024, lng: 128.580096 }, // 4. 선비문화수련원
-        { lat: 36.925024, lng: 128.580096 }, // 5. 선비세상
+        { lat: 36.925024, lng: 128.580096 },
+        { lat: 36.925024, lng: 128.580096 },
+        { lat: 36.925024, lng: 128.580096 },
+        { lat: 36.925024, lng: 128.580096 },
+        { lat: 36.925024, lng: 128.580096 },
     ];
-    const GPS_RADIUS = 100; // 인증 반경 (미터)
+    const GPS_RADIUS = 100;
 
-    // 두 좌표 간 거리 계산 (Haversine)
     function calcDistance(lat1, lng1, lat2, lng2) {
         const R = 6371000;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2)
-                + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
-                * Math.sin(dLng/2) * Math.sin(dLng/2);
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function stampSite(n) {
+    window.stampSite = function(n) {
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
-
-        // GPS 인증 모달 표시
         window._gpsPendingN = n;
         const modal = document.getElementById('gpsModal');
-        const modalTitle = document.getElementById('gpsModalTitle');
-        const gpsStatus = document.getElementById('gpsStatus');
         document.getElementById('gpsModalIcon').textContent = '📡';
         document.getElementById('gpsRetryBtn').style.display = 'none';
-        modalTitle.textContent = siteNames[n-1] + ' 스탬프 인증';
-        gpsStatus.textContent = '📡 현재 위치를 확인하는 중...';
+        document.getElementById('gpsModalTitle').textContent = siteNames[n-1] + ' 스탬프 인증';
+        document.getElementById('gpsStatus').textContent = '📡 현재 위치를 확인하는 중...';
         modal.classList.add('show');
 
         if (!navigator.geolocation) {
-            gpsStatus.textContent = '❌ 이 기기는 GPS를 지원하지 않습니다.';
+            document.getElementById('gpsStatus').textContent = '❌ 이 기기는 GPS를 지원하지 않습니다.';
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
-            function(pos) {
-                const userLat = pos.coords.latitude;
-                const userLng = pos.coords.longitude;
-                const target = siteCoords[n-1];
-                const dist = calcDistance(userLat, userLng, target.lat, target.lng);
+            async function(pos) {
+                const dist = calcDistance(pos.coords.latitude, pos.coords.longitude, siteCoords[n-1].lat, siteCoords[n-1].lng);
                 const distText = dist < 1000 ? Math.round(dist) + 'm' : (dist/1000).toFixed(1) + 'km';
-
                 if (dist <= GPS_RADIUS) {
                     modal.classList.remove('show');
                     stamps.push(n);
                     localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+                    // Firebase에 스탬프 저장
+                    await fbSaveStamp(siteNames[n-1]);
                     sendToSheet('스탬프인증', siteNames[n-1]);
                     loadStamps();
                     drawPaths();
@@ -1074,89 +1153,77 @@
                 } else {
                     document.getElementById('gpsModalIcon').textContent = '❌';
                     document.getElementById('gpsModalTitle').textContent = '인증 실패';
-                    gpsStatus.innerHTML = `거점과의 거리: <strong style="color:#c0392b;">${distText}</strong><br><span style="font-size:12px;color:#999;">100m 이내에 있어야 인증됩니다</span>`;
+                    document.getElementById('gpsStatus').innerHTML = `거점과의 거리: <strong style="color:#c0392b;">${distText}</strong><br><span style="font-size:12px;color:#999;">100m 이내에 있어야 인증됩니다</span>`;
                     document.getElementById('gpsRetryBtn').style.display = 'block';
                 }
             },
             function(err) {
-                const msgs = {
-                    1: '위치 접근이 거부되었습니다.\n설정에서 위치 권한을 허용해 주세요.',
-                    2: '위치를 확인할 수 없습니다.\nGPS 신호를 확인해 주세요.',
-                    3: '위치 확인 시간이 초과되었습니다.\n다시 시도해 주세요.'
-                };
+                const msgs = { 1:'위치 접근이 거부되었습니다.\n설정에서 위치 권한을 허용해 주세요.', 2:'위치를 확인할 수 없습니다.\nGPS 신호를 확인해 주세요.', 3:'위치 확인 시간이 초과되었습니다.\n다시 시도해 주세요.' };
                 document.getElementById('gpsModalIcon').textContent = '❌';
                 document.getElementById('gpsModalTitle').textContent = '인증 실패';
-                gpsStatus.textContent = msgs[err.code] || '위치 확인 중 오류가 발생했습니다.';
+                document.getElementById('gpsStatus').textContent = msgs[err.code] || '위치 확인 중 오류가 발생했습니다.';
                 document.getElementById('gpsRetryBtn').style.display = 'block';
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
-    }
+    };
 
-    function closeGpsModal() {
-        document.getElementById('gpsModal').classList.remove('show');
-    }
+    window.closeGpsModal = () => document.getElementById('gpsModal').classList.remove('show');
 
-    function showStampSuccess(name) {
+    window.showStampSuccess = function(name) {
         document.getElementById('successSiteName').textContent = name;
         document.getElementById('stampSuccessOverlay').classList.add('show');
-    }
+    };
+    window.closeStampSuccess = () => document.getElementById('stampSuccessOverlay').classList.remove('show');
 
-    function closeStampSuccess() {
-        document.getElementById('stampSuccessOverlay').classList.remove('show');
-    }
-
-
-    /* ── 완주 페이지 ── */
-    function initCompletePage() {
+    /* ════════════════════════════════════════
+       완주 페이지
+    ════════════════════════════════════════ */
+    window.initCompletePage = async function() {
         const user = JSON.parse(localStorage.getItem('seonbi_user') || '{}');
         const name = user.name || '선비';
 
-        // 인증번호: 이름+전화 기반 고정 번호 생성
+        // 인증번호 생성 (로컬 캐시 우선)
         let certKey = 'seonbi_cert_' + (user.name || 'guest');
         let cert = localStorage.getItem(certKey);
         if (!cert) {
-            const rand = Math.floor(100000 + Math.random() * 900000);
-            cert = '선비-' + rand;
+            cert = '선비-' + Math.floor(100000 + Math.random() * 900000);
             localStorage.setItem(certKey, cert);
         }
 
         const now = new Date();
-        const dateStr = now.getFullYear() + '.' +
-            String(now.getMonth()+1).padStart(2,'0') + '.' +
-            String(now.getDate()).padStart(2,'0') + ' ' +
-            String(now.getHours()).padStart(2,'0') + ':' +
-            String(now.getMinutes()).padStart(2,'0');
+        const dateStr = now.getFullYear() + '.' + String(now.getMonth()+1).padStart(2,'0') + '.' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
 
         document.getElementById('certName').textContent = name + ' 선비님';
         document.getElementById('certNumber').textContent = cert;
         document.getElementById('certDate').textContent = '완주일시: ' + dateStr;
 
-        // 완주 시트 전송 (최초 1회만)
+        // 완주 Firebase 저장 (최초 1회)
         if (!localStorage.getItem('seonbi_complete_sent')) {
+            await fbSaveComplete(cert);
             sendToSheet('완주', cert);
             localStorage.setItem('seonbi_complete_sent', 'yes');
         }
 
-        // 수령 완료 상태 복원
-        if (localStorage.getItem('seonbi_gift_claimed') === 'yes') {
+        // 수령 상태: Firebase 우선 조회 → 수령됐으면 버튼 비활성화
+        const claimed = await fbCheckGiftClaimed();
+        if (claimed) {
             setTimeout(setGiftClaimed, 100);
         }
-    }
+    };
 
-    function claimGift() {
-        // 이미 수령 완료 상태면 무시
-        if (localStorage.getItem('seonbi_gift_claimed') === 'yes') return;
+    window.claimGift = function() {
         document.getElementById('staffModal').classList.add('show');
         document.getElementById('staffCodeInput').value = '';
         document.getElementById('staffCodeError').style.display = 'none';
         setTimeout(() => document.getElementById('staffCodeInput').focus(), 200);
-    }
+    };
 
-    function confirmStaffCode() {
+    window.confirmStaffCode = async function() {
         const code = document.getElementById('staffCodeInput').value.trim();
         if (code === '2026') {
-            localStorage.setItem('seonbi_gift_claimed', 'yes');
+            // Firebase에 수령 상태 저장
+            await fbClaimGift();
             closeModal();
             setGiftClaimed();
         } else {
@@ -1164,11 +1231,9 @@
             document.getElementById('staffCodeInput').value = '';
             document.getElementById('staffCodeInput').focus();
         }
-    }
+    };
 
-    function closeModal() {
-        document.getElementById('staffModal').classList.remove('show');
-    }
+    window.closeModal = () => document.getElementById('staffModal').classList.remove('show');
 
     function setGiftClaimed() {
         const btn = document.getElementById('giftBtn');
@@ -1180,56 +1245,43 @@
         btn.style.cursor = 'not-allowed';
     }
 
-    /* initCompletePage 안에서 수령 완료 상태 복원 */
-    function drawPaths() {
+    /* ════════════════════════════════════════
+       경로 SVG 그리기
+    ════════════════════════════════════════ */
+    window.drawPaths = function() {
         const svg = document.getElementById('pathSvg');
         const map = document.getElementById('stampMap');
         if (!svg || !map) return;
         svg.innerHTML = '';
-
         const mapRect = map.getBoundingClientRect();
         const scrollTop = document.querySelector('.stamp-map-scroll').scrollTop || 0;
         const totalH = map.scrollHeight;
         svg.setAttribute('viewBox', `0 0 ${mapRect.width} ${totalH}`);
         svg.style.height = totalH + 'px';
-
         const cards = [1,2,3,4,5].map(i => {
             const el = document.getElementById('card' + i);
             if (!el) return null;
             const r = el.getBoundingClientRect();
-            const cx = r.left - mapRect.left + r.width / 2;
-            const cy = r.top - mapRect.top + r.height / 2 + scrollTop;
-            return { cx, cy, hw: r.width/2, hh: r.height/2 };
+            return { cx: r.left - mapRect.left + r.width/2, cy: r.top - mapRect.top + r.height/2 + scrollTop, hw: r.width/2, hh: r.height/2 };
         }).filter(Boolean);
-
         for (let i = 0; i < cards.length - 1; i++) {
             const a = cards[i], b = cards[i+1];
-            const isDone = stamps.includes(i+1);
             const my = (a.cy + b.cy) / 2;
-            const d = `M ${a.cx} ${a.cy + a.hh} C ${a.cx} ${my}, ${b.cx} ${my}, ${b.cx} ${b.cy - b.hh}`;
-
-            // 흰 배경선
+            const d = `M ${a.cx} ${a.cy+a.hh} C ${a.cx} ${my}, ${b.cx} ${my}, ${b.cx} ${b.cy-b.hh}`;
             const bg = document.createElementNS('http://www.w3.org/2000/svg','path');
-            bg.setAttribute('d',d); bg.setAttribute('fill','none');
-            bg.setAttribute('stroke','rgba(255,255,255,0.7)'); bg.setAttribute('stroke-width','10');
-            bg.setAttribute('stroke-linecap','round'); svg.appendChild(bg);
-
-            // 황금 점선
+            bg.setAttribute('d',d); bg.setAttribute('fill','none'); bg.setAttribute('stroke','rgba(255,255,255,0.7)'); bg.setAttribute('stroke-width','10'); bg.setAttribute('stroke-linecap','round');
+            svg.appendChild(bg);
             const path = document.createElementNS('http://www.w3.org/2000/svg','path');
             path.setAttribute('d',d); path.setAttribute('fill','none');
-            path.setAttribute('stroke', isDone ? '#C9972A' : '#E8B84B');
-            path.setAttribute('stroke-width','5');
-            path.setAttribute('stroke-dasharray','14 8');
-            path.setAttribute('stroke-linecap','round');
+            path.setAttribute('stroke', stamps.includes(i+1) ? '#C9972A' : '#E8B84B');
+            path.setAttribute('stroke-width','5'); path.setAttribute('stroke-dasharray','14 8'); path.setAttribute('stroke-linecap','round');
             path.style.animation = 'dashAnim 1s linear infinite';
             svg.appendChild(path);
         }
-    }
+    };
 
-    window.onload = () => {};
 </script>
 
-    <!-- 스탬프 인증 완료 팝업 -->
     <!-- GPS 인증 모달 -->
     <div class="gps-modal-overlay" id="gpsModal">
         <div class="gps-modal-box">
@@ -1241,6 +1293,7 @@
         </div>
     </div>
 
+    <!-- 스탬프 인증 완료 팝업 -->
     <div class="stamp-success-overlay" id="stampSuccessOverlay">
         <div class="stamp-success-box">
             <div class="stamp-success-icon">🎉</div>
