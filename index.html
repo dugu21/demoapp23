@@ -989,15 +989,35 @@
         const origText = btn.innerHTML;
         btn.innerHTML = '⏳ 저장 중...';
         btn.disabled = true;
+
+        // 버튼·안내문 일시적으로 숨김
+        const hint = btn.nextElementSibling;
+        btn.style.display = 'none';
+        if (hint) hint.style.display = 'none';
+
+        // complete-scroll 스크롤 맨 위로
+        const scroll = document.querySelector('.complete-scroll');
+        const prevScroll = scroll.scrollTop;
+        scroll.scrollTop = 0;
+
+        // 스크롤 일시 해제 → 전체 내용 펼치기
+        const prevOverflow = scroll.style.overflow;
+        scroll.style.overflow = 'visible';
+        scroll.style.height = 'auto';
+
         try {
             const target = document.getElementById('page-complete');
             const canvas = await html2canvas(target, {
                 useCORS: true,
+                allowTaint: true,
                 scale: 2,
                 backgroundColor: null,
-                scrollY: 0,
-                windowWidth: target.offsetWidth,
-                windowHeight: target.offsetHeight
+                x: target.getBoundingClientRect().left,
+                y: target.getBoundingClientRect().top,
+                width: target.offsetWidth,
+                height: target.offsetHeight,
+                scrollX: 0,
+                scrollY: -window.scrollY,
             });
             const certNum = document.getElementById('certNumber').textContent || '완주';
             const link = document.createElement('a');
@@ -1005,10 +1025,16 @@
             link.href = canvas.toDataURL('image/png');
             link.click();
         } catch(e) {
-            alert('저장 중 오류가 발생했습니다.');
+            alert('저장 중 오류가 발생했습니다: ' + e.message);
         } finally {
+            // 원상복구
+            scroll.style.overflow = prevOverflow;
+            scroll.style.height = '';
+            scroll.scrollTop = prevScroll;
+            btn.style.display = '';
             btn.innerHTML = origText;
             btn.disabled = false;
+            if (hint) hint.style.display = '';
         }
     };
 
