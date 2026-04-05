@@ -279,6 +279,70 @@
         .gift-btn:active { transform: scale(0.97); box-shadow: 0 3px 12px rgba(232,184,75,0.25); }
         .gift-btn-sub { font-size: 11px; color: rgba(255,255,255,0.45); text-align: center; margin-top: 10px; animation: fadeUp 0.5s ease 0.9s both; }
 
+        /* 퀴즈 모달 */
+        .quiz-modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 250;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+            align-items: center; justify-content: center; pointer-events: none;
+        }
+        .quiz-modal-overlay.show { display: flex; pointer-events: all; }
+        .quiz-modal-box {
+            background: #fff; border-radius: 26px;
+            padding: 28px 22px 24px; width: calc(100% - 48px); max-width: 360px;
+            animation: starPop 0.3s cubic-bezier(.4,0,.2,1) forwards;
+        }
+        .quiz-badge {
+            display: inline-block; background: linear-gradient(135deg,#E8B84B,#C9972A);
+            color: #1B3A2A; font-size: 11px; font-weight: 900; letter-spacing: 1px;
+            padding: 4px 12px; border-radius: 20px; margin-bottom: 14px;
+        }
+        .quiz-site-name {
+            font-size: 13px; font-weight: 700; color: #4DC95A; margin-bottom: 6px;
+        }
+        .quiz-question {
+            font-family: 'Noto Serif KR', serif; font-size: 17px; font-weight: 700;
+            color: #1B3A2A; line-height: 1.6; margin-bottom: 20px;
+        }
+        .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+        .quiz-option {
+            width: 100%; padding: 14px 16px; border-radius: 14px;
+            border: 2px solid #e0eef5; background: #f7fbfe;
+            font-size: 15px; font-weight: 700; color: #2a4a3a;
+            text-align: left; cursor: pointer;
+            transition: all 0.15s; display: flex; align-items: center; gap: 10px;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .quiz-option:active { transform: scale(0.98); }
+        .quiz-option .opt-num {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #e0eef5; color: #5a8a7a; font-size: 13px; font-weight: 900;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .quiz-option:hover { border-color: #E8B84B; background: #fffdf5; }
+        .quiz-option:hover .opt-num { background: #E8B84B; color: #1B3A2A; }
+        .quiz-option.correct { border-color: #4DC95A; background: #f0fff4; pointer-events: none; }
+        .quiz-option.correct .opt-num { background: #4DC95A; color: white; }
+        .quiz-option.wrong { border-color: #ff6b6b; background: #fff5f5; pointer-events: none; }
+        .quiz-option.wrong .opt-num { background: #ff6b6b; color: white; }
+        .quiz-option.disabled { opacity: 0.4; pointer-events: none; }
+        .quiz-feedback {
+            margin-top: 14px; padding: 12px 16px; border-radius: 12px;
+            font-size: 13px; font-weight: 700; text-align: center; line-height: 1.6;
+            display: none;
+        }
+        .quiz-feedback.show { display: block; }
+        .quiz-feedback.correct { background: #f0fff4; color: #2aaa48; }
+        .quiz-feedback.wrong { background: #fff5f5; color: #e74c3c; }
+        .quiz-retry-btn {
+            width: 100%; margin-top: 12px; padding: 14px; border-radius: 14px; border: none;
+            background: linear-gradient(135deg, #E8B84B, #C9972A);
+            color: #1B3A2A; font-size: 15px; font-weight: 900;
+            font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
+            display: none;
+        }
+        .quiz-retry-btn.show { display: block; }
+
         /* GPS 모달 */
         .gps-modal-overlay {
             display: none; position: fixed; inset: 0; z-index: 200;
@@ -524,6 +588,18 @@
 
 </div>
 
+<!-- 퀴즈 모달 -->
+<div class="quiz-modal-overlay" id="quizModal">
+    <div class="quiz-modal-box">
+        <div class="quiz-badge">📝 선비 퀴즈</div>
+        <div class="quiz-site-name" id="quizSiteName"></div>
+        <div class="quiz-question" id="quizQuestion"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div class="quiz-feedback" id="quizFeedback"></div>
+        <button class="quiz-retry-btn" id="quizRetryBtn" onclick="retryQuiz()">🔄 다시 풀기</button>
+    </div>
+</div>
+
 <!-- GPS 인증 모달 -->
 <div class="gps-modal-overlay" id="gpsModal">
     <div class="gps-modal-box">
@@ -684,6 +760,113 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
+    /* ── 퀴즈 데이터 ── */
+    const quizData = [
+        {
+            site: '소수서원',
+            question: '소수서원은 조선시대 임금이 이름을 내려준 최초의 서원입니다. 이처럼 왕이 이름을 내린 서원을 무엇이라 할까요?',
+            options: ['향교', '사액서원', '성균관', '서당'],
+            answer: 1
+        },
+        {
+            site: '소수박물관',
+            question: '소수서원이 유네스코 세계문화유산으로 등재된 연도는 언제일까요?',
+            options: ['2015년', '2017년', '2019년', '2021년'],
+            answer: 2
+        },
+        {
+            site: '선비촌',
+            question: '선비들이 공부하며 지켜온 핵심 덕목 "인의예지" 에 더해지는 다섯 번째 덕목은 무엇일까요?',
+            options: ['신(信)', '충(忠)', '효(孝)', '경(敬)'],
+            answer: 0
+        },
+        {
+            site: '선비문화수련원',
+            question: '조선시대 선비가 갖춰야 할 학문과 인격 수양을 뜻하는 사자성어는 무엇일까요?',
+            options: ['입신양명', '수신제가', '격물치지', '온고지신'],
+            answer: 1
+        },
+        {
+            site: '선비세상',
+            question: '선비세상 마스코트가 아닌 것은?',
+            options: ['호선', '백선', '다선', '상선'],
+            answer: 3
+        }
+    ];
+
+    let _quizPendingN = null;
+
+    window.showQuiz = function(n) {
+        _quizPendingN = n;
+        const quiz = quizData[n - 1];
+
+        document.getElementById('quizSiteName').textContent = '📍 ' + quiz.site;
+        document.getElementById('quizQuestion').textContent = quiz.question;
+
+        const optionsEl = document.getElementById('quizOptions');
+        optionsEl.innerHTML = '';
+        quiz.options.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-option';
+            btn.innerHTML = `<span class="opt-num">${idx + 1}</span>${opt}`;
+            btn.onclick = () => answerQuiz(idx);
+            optionsEl.appendChild(btn);
+        });
+
+        const feedback = document.getElementById('quizFeedback');
+        feedback.className = 'quiz-feedback';
+        feedback.textContent = '';
+        document.getElementById('quizRetryBtn').className = 'quiz-retry-btn';
+
+        document.getElementById('quizModal').classList.add('show');
+    };
+
+    window.answerQuiz = async function(idx) {
+        const quiz = quizData[_quizPendingN - 1];
+        const options = document.querySelectorAll('.quiz-option');
+        const feedback = document.getElementById('quizFeedback');
+        const retryBtn = document.getElementById('quizRetryBtn');
+
+        // 모든 버튼 비활성화
+        options.forEach(btn => btn.classList.add('disabled'));
+
+        if (idx === quiz.answer) {
+            // 정답
+            options[idx].classList.remove('disabled');
+            options[idx].classList.add('correct');
+            feedback.textContent = '🎉 정답입니다! 스탬프가 찍혔습니다!';
+            feedback.className = 'quiz-feedback correct show';
+
+            setTimeout(async () => {
+                document.getElementById('quizModal').classList.remove('show');
+                const n = _quizPendingN;
+                stamps.push(n);
+                localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
+                await fbSaveStamp(siteNames[n - 1]);
+                sendToSheet('스탬프인증', siteNames[n - 1]);
+                loadStamps();
+                drawPaths();
+                showStampSuccess(siteNames[n - 1]);
+            }, 1200);
+
+        } else {
+            // 오답
+            options[idx].classList.remove('disabled');
+            options[idx].classList.add('wrong');
+            options[quiz.answer].classList.remove('disabled');
+            options[quiz.answer].classList.add('correct');
+            feedback.textContent = '❌ 틀렸습니다. 정답은 ' + (quiz.answer + 1) + '번이에요!';
+            feedback.className = 'quiz-feedback wrong show';
+            retryBtn.className = 'quiz-retry-btn show';
+        }
+    };
+
+    window.retryQuiz = function() {
+        const n = _quizPendingN;
+        document.getElementById('quizModal').classList.remove('show');
+        setTimeout(() => showQuiz(n), 200);
+    };
+
     window.stampSite = function(n) {
         if (stamps.includes(n)) { alert('이미 인증된 거점입니다! 📌'); return; }
         window._gpsPendingN = n;
@@ -705,13 +888,7 @@
                 const distText = dist < 1000 ? Math.round(dist) + 'm' : (dist/1000).toFixed(1) + 'km';
                 if (dist <= GPS_RADIUS) {
                     modal.classList.remove('show');
-                    stamps.push(n);
-                    localStorage.setItem('seonbi_stamps', JSON.stringify(stamps));
-                    await fbSaveStamp(siteNames[n-1]);
-                    sendToSheet('스탬프인증', siteNames[n-1]);
-                    loadStamps();
-                    drawPaths();
-                    showStampSuccess(siteNames[n-1]);
+                    showQuiz(n);
                 } else {
                     document.getElementById('gpsModalIcon').textContent = '❌';
                     document.getElementById('gpsModalTitle').textContent = '인증 실패';
