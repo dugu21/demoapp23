@@ -990,17 +990,13 @@
         btn.innerHTML = '⏳ 저장 중...';
         btn.disabled = true;
 
-        // 버튼·안내문 일시적으로 숨김
         const hint = btn.nextElementSibling;
         btn.style.display = 'none';
         if (hint) hint.style.display = 'none';
 
-        // complete-scroll 스크롤 맨 위로
         const scroll = document.querySelector('.complete-scroll');
         const prevScroll = scroll.scrollTop;
         scroll.scrollTop = 0;
-
-        // 스크롤 일시 해제 → 전체 내용 펼치기
         const prevOverflow = scroll.style.overflow;
         scroll.style.overflow = 'visible';
         scroll.style.height = 'auto';
@@ -1019,15 +1015,34 @@
                 scrollX: 0,
                 scrollY: -window.scrollY,
             });
+
             const certNum = document.getElementById('certNumber').textContent || '완주';
-            const link = document.createElement('a');
-            link.download = '선비숨길_완주인증서_' + certNum + '.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            const fileName = '선비숨길_완주인증서_' + certNum + '.png';
+
+            // Web Share API 지원 시 (모바일 공유 시트)
+            if (navigator.canShare) {
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], fileName, { type: 'image/png' });
+                    if (navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: '선비숨길 완주 인증서',
+                                text: '영주 선비숨길 스탬프투어 완주 달성! 🏆'
+                            });
+                        } catch(shareErr) {
+                            if (shareErr.name !== 'AbortError') fallbackDownload(canvas, fileName);
+                        }
+                    } else {
+                        fallbackDownload(canvas, fileName);
+                    }
+                }, 'image/png');
+            } else {
+                fallbackDownload(canvas, fileName);
+            }
         } catch(e) {
             alert('저장 중 오류가 발생했습니다: ' + e.message);
         } finally {
-            // 원상복구
             scroll.style.overflow = prevOverflow;
             scroll.style.height = '';
             scroll.scrollTop = prevScroll;
@@ -1037,6 +1052,13 @@
             if (hint) hint.style.display = '';
         }
     };
+
+    function fallbackDownload(canvas, fileName) {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
 
     /* ── 경로 SVG ── */
     window.drawPaths = function() {
