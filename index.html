@@ -652,7 +652,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxL924UVuWRCU5dZ2nwJbwkHDhRf8GLMcTzNZ8RjoM7Y3DBzrHkk6CMK9YWCw5A4dvFuw/exec';
+    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyIZAS7xX_bYqkzk4iAs8hg3UN-QPySutOenRK5kaxJkRkpQFNusxQrlPaLkhTUR5Vo1A/exec';
 
     /* 사용자 ID (익명) */
     function getUserId() {
@@ -999,6 +999,21 @@
             svg.appendChild(path);
         }
     };
+
+    /* ── 방문자 집계 ── */
+    (function() {
+        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const lastVisit = localStorage.getItem('seonbi_last_visit');
+        // 오늘 이미 기록했으면 재전송 안 함 (새로고침 중복 방지)
+        if (lastVisit === today) return;
+        localStorage.setItem('seonbi_last_visit', today);
+        fetch(SHEET_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event: '방문', certNumber: '' })
+        }).catch(() => {});
+    })();
+
 </script>
 
 </body>
